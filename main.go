@@ -2,15 +2,15 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
 	"github.com/ffcoelho/jma/keys"
 )
+
+var t *keys.TTY
 
 func main() {
 	setupExitHandler()
@@ -30,18 +30,14 @@ func setupExitHandler() {
 	go func() {
 		<-c
 		fmt.Println("\rJSON Mock API is down.")
-		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+		t.Close()
 		os.Exit(0)
 	}()
 }
 
 func setupKeyboardHandler() {
 	go func() {
-		t, err := keys.Open()
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer t.Close()
+		t = keys.Open()
 
 		for {
 			key := t.ReadKey()

@@ -1,9 +1,16 @@
 package keys
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
-func Open() (*TTY, error) {
-	return open("/dev/tty")
+func Open() *TTY {
+	tty, err := open("/dev/tty")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return tty
 }
 
 func (tty *TTY) Close() error {
@@ -15,5 +22,12 @@ func (tty *TTY) ReadKey() string {
 	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf("%c", r)
+	char := fmt.Sprintf("%c", r)
+	if char == "d" || char == "D" {
+		return "d"
+	}
+	if char == "s" || char == "S" {
+		return "s"
+	}
+	return ""
 }
