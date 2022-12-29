@@ -123,3 +123,7 @@ func (tty *TTY) readRune() (rune, error) {
 	}
 	return 0, nil
 }
+
+func (tty *TTY) buffered() bool {
+	return len(tty.rs) > 0
+}

@@ -5,6 +5,8 @@ import (
 	"log"
 )
 
+var key string
+
 func Open() *TTY {
 	tty, err := open("/dev/tty")
 	if err != nil {
@@ -22,15 +24,25 @@ func (tty *TTY) ReadKey() string {
 	if err != nil {
 		return ""
 	}
+
 	char := fmt.Sprintf("%c", r)
-	if char == "a" || char == "A" {
+	key = key + char
+	if tty.buffered() {
+		return ""
+	}
+	return checkReadKey()
+}
+
+func checkReadKey() string {
+	readKey := key
+	key = ""
+	switch readKey {
+	case "a", "A":
 		return "a"
-	}
-	if char == "d" || char == "D" {
-		return "d"
-	}
-	if char == "s" || char == "S" {
+	case "s", "S":
 		return "s"
+	case "d", "D":
+		return "d"
 	}
 	return ""
 }

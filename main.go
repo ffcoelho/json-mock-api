@@ -247,8 +247,13 @@ func printPaths() {
 }
 
 func printInfo(ip string) {
-	fmt.Printf("\nListening on http://localhost:%d/%s\n", port, prefix)
-	fmt.Printf("             http://%s:%d/%s\n", ip, port, prefix)
+	prefixInfo := ""
+	if len(prefix) > 0 {
+		prefixInfo = "/" + prefix
+	}
+	fmt.Printf("\nSTATUS CODE: 200\n")
+	fmt.Printf("\nListening on http://localhost:%d%s\n", port, prefixInfo)
+	fmt.Printf("             http://%s:%d%s\n", ip, port, prefixInfo)
 }
 
 func setupExitHandler() {
@@ -256,7 +261,7 @@ func setupExitHandler() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		fmt.Println("\nJSON Mock API is down.")
+		fmt.Println()
 		tty.Close()
 		os.Exit(0)
 	}()
