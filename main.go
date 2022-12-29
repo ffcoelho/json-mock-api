@@ -1,54 +1,154 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ffcoelho/jma/keys"
 )
 
+type Route struct {
+	path    string
+	pathEls []string
+	methods []Method
+}
+
+type Method struct {
+	method    string
+	responses []MockResponse
+}
+
+type MockResponse struct {
+	code    string
+	payload any
+}
+
 var tty *keys.TTY
+var methods []string = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "CONNECT", "TRACE"}
 var codes []int = []int{200, 201, 202, 204, 301, 302, 304, 400, 401, 403, 404, 409, 410, 500, 501, 503}
 
-var startServer bool
+var showHelp bool
 var lastPrint int = -1
 var statusCodeIdx int
 
-var port uint16 = 9000
+var port uint16
+var prefix string
 var delay int
 var statusCode int = http.StatusOK
+var routes []Route
+var apiPaths []string
 
 func init() {
-	startServer = processArgs()
-	if startServer {
-		setupExitHandler()
-		setupKeyboardHandler()
+	help := flag.Bool("help", false, "Help")
+	serverPort := flag.Int("port", 9000, "Server port")
+	apiPrefix := flag.String("prefix", "", "Routes prefix")
+	flag.Parse()
+	port = uint16(*serverPort)
+	prefix = *apiPrefix
+
+	if *help || (len(os.Args) > 1 && os.Args[1] == "help") {
+		showHelp = true
 	}
 }
 
 func main() {
-	if startServer {
-		printHeader()
-		http.HandleFunc("/", handler)
-		ip := getIP()
-		printInfo(ip.String())
-		addr := fmt.Sprintf(":%d", port)
-		http.ListenAndServe(addr, nil)
-	} else {
+	if showHelp {
 		printHelp()
+		return
+	}
+
+	ip := getIP()
+	readMockFile()
+	setupExitHandler()
+	setupKeyboardHandler()
+	printHeader()
+	printPaths()
+	http.HandleFunc("/", handler)
+	printInfo(ip.String())
+	addr := fmt.Sprintf(":%d", port)
+	http.ListenAndServe(addr, nil)
+}
+
+func checkSetupError(e error, s string) {
+	if e != nil {
+		switch s {
+		case "open_file":
+			fmt.Printf("ERROR: mock.json not found. Run help for more info.\n")
+		case "read_file":
+			fmt.Printf("ERROR: invalid mock.json. Run help for more info.\n")
+		default:
+			fmt.Printf("ERROR: something went wrong.\n")
+		}
+		os.Exit(0)
 	}
 }
 
+func readMockFile() error {
+	mockFile, err := os.Open("mock.json")
+	checkSetupError(err, "open_file")
+	defer mockFile.Close()
+
+	byteValue, err := io.ReadAll(mockFile)
+	checkSetupError(err, "read_file")
+	var result map[string]map[string]map[string]interface{}
+	err = json.Unmarshal([]byte(byteValue), &result)
+	checkSetupError(err, "read_file")
+
+	for route, methods := range result {
+		routeElements := processRouteElements(route)
+		if len(routeElements) == 0 {
+			continue
+		}
+		var mockRoute Route
+		mockRoute.path = route
+		mockRoute.pathEls = routeElements
+		for method, responses := range methods {
+			if invalidMethod(method) {
+				continue
+			}
+			var mockMethod Method
+			mockMethod.method = method
+			for code, payload := range responses {
+				if invalidStatusCode(code) {
+					continue
+				}
+				var mockResponse MockResponse
+				mockResponse.code = code
+				mockResponse.payload = payload
+				mockMethod.responses = append(mockMethod.responses, mockResponse)
+			}
+			mockRoute.methods = append(mockRoute.methods, mockMethod)
+		}
+		routes = append(routes, mockRoute)
+		apiPaths = append(apiPaths, mockRoute.path)
+	}
+	sort.Strings(apiPaths)
+	return nil
+}
+
 func handler(w http.ResponseWriter, req *http.Request) {
+	if !strings.HasPrefix(req.URL.Path, "/"+prefix) {
+		http.Error(w, "Error: invalid prefix", http.StatusNotFound)
+		return
+	}
+	reqPath := strings.SplitAfter(req.URL.Path, prefix)[1]
+	if len(reqPath) == 0 {
+		reqPath = "/"
+	}
 	lastPrint = 0
 	now := time.Now()
-	fmt.Printf("\n%s %d %s %s", now.Format("15:04:05.000"), statusCode, req.Method, req.URL.Path)
+	fmt.Printf("\n%s %d %s %s %s", now.Format("15:04:05.000"), statusCode, req.Method, reqPath, req.RemoteAddr)
 	w.WriteHeader(statusCode)
 	w.Header().Set("Content-Type", "application/json")
 	time.Sleep(time.Duration(delay) * time.Millisecond)
@@ -94,21 +194,61 @@ func toggleStatus(i int) {
 	fmt.Printf("%s\rSTATUS CODE: %d", br, codes[statusCodeIdx])
 }
 
+func processRouteElements(route string) []string {
+	if !strings.HasPrefix(route, "/") {
+		return []string{}
+	}
+	if route == "/" {
+		return []string{"*root*"}
+	}
+	els := strings.Split(route, "/")[1:]
+	for _, el := range els {
+		if len(el) == 0 {
+			return []string{}
+		}
+	}
+	return els
+}
+
+func invalidMethod(key string) bool {
+	for _, method := range methods {
+		if method == key {
+			return false
+		}
+	}
+	return true
+}
+
+func invalidStatusCode(statusCode string) bool {
+	sc, err := strconv.Atoi(statusCode)
+	if err != nil {
+		return true
+	}
+	for _, code := range codes {
+		if code == sc {
+			return false
+		}
+	}
+	return true
+}
+
 func printHeader() {
 	fmt.Printf("JSON Mock API v1.0\n\n")
-	fmt.Printf(" Key   Command               Default\n")
-	fmt.Printf(" a, s  change status code    200\n")
-	fmt.Printf(" d     toggle delay          OFF\n")
+	fmt.Printf("  a, s    change status code\n")
+	fmt.Printf("  d       toggle delay\n")
+	fmt.Printf("  ctrl+c  stop server\n\n")
+	fmt.Printf("For more info, run help.\n\n")
+}
+
+func printPaths() {
+	for _, path := range apiPaths {
+		fmt.Printf("%s\n", path)
+	}
 }
 
 func printInfo(ip string) {
-	fmt.Printf("\nListening on http://localhost:%d\n", port)
-	fmt.Printf("             http://%s:%d\n", ip, port)
-}
-
-func printHelp() {
-	fmt.Println("Usage: ./mock <port>")
-	fmt.Println("Example: ./mock 3000    (default: 9000)")
+	fmt.Printf("\nListening on http://localhost:%d/%s\n", port, prefix)
+	fmt.Printf("             http://%s:%d/%s\n", ip, port, prefix)
 }
 
 func setupExitHandler() {
@@ -140,26 +280,9 @@ func setupKeyboardHandler() {
 	}()
 }
 
-func processArgs() bool {
-	args := os.Args[1:]
-	if len(args) > 0 {
-		if args[0] == "help" || args[0] == "-help" || args[0] == "--help" {
-			return false
-		} else {
-			pUi64, err := strconv.ParseUint(args[0], 10, 64)
-			if err == nil {
-				port = uint16(pUi64)
-			}
-		}
-	}
-	return true
-}
-
 func getIP() net.IP {
 	ifaces, err := net.Interfaces()
-	if err != nil {
-		panic(err)
-	}
+	checkSetupError(err, "net")
 
 	ips := make([]net.IP, 0)
 	for _, i := range ifaces {
@@ -185,4 +308,39 @@ func getIP() net.IP {
 		}
 	}
 	return ips[0]
+}
+
+func printHelp() {
+	fmt.Printf("JSON Mock API v1.0 Help\n\n")
+	fmt.Printf("USAGE\n\n")
+	fmt.Printf("  $ ./mock [--port{9000}] [--prefix]\n\n")
+	fmt.Printf("  - Examples:\n")
+	fmt.Printf("    $ ./mock\n")
+	fmt.Printf("    $ ./mock -port=3000 -prefix=api/v1\n\n")
+	fmt.Printf("COMMANDS\n\n")
+	fmt.Printf("  a, s  change status code\n")
+	fmt.Printf("  d     toggle delay\n\n")
+	fmt.Printf("MOCK ROUTES (mock.json)\n\n")
+	fmt.Printf("  PATH: {\n")
+	fmt.Printf("    METHOD: {\n")
+	fmt.Printf("      CODE: PAYLOAD\n")
+	fmt.Printf("    }\n")
+	fmt.Printf("  }\n\n")
+	fmt.Printf("  - Example:\n")
+	fmt.Printf("    {\n")
+	fmt.Printf("      \"/books\": {\n")
+	fmt.Printf("        \"GET\": {\n")
+	fmt.Printf("          \"200\": { \"books\": [] }\n")
+	fmt.Printf("        }\n")
+	fmt.Printf("      },\n")
+	fmt.Printf("      \"/books/:id/reviews\": {\n")
+	fmt.Printf("        \"POST\": {\n")
+	fmt.Printf("          \"201\": { \"error\": false },\n")
+	fmt.Printf("          \"400\": { \"error\": true }\n")
+	fmt.Printf("        },\n")
+	fmt.Printf("        \"GET\": {\n")
+	fmt.Printf("          \"200\": { \"reviews\": [] }\n")
+	fmt.Printf("        }\n")
+	fmt.Printf("      }\n")
+	fmt.Printf("    }\n\n")
 }

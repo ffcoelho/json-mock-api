@@ -1,0 +1,16 @@
+{
+  "/books": {
+    "GET": {
+      "200": { "books": [] }
+    }
+  },
+  "/books/:id/reviews": {
+    "POST": {
+      "201": { "error": false },
+      "400": { "error": true }
+    },
+    "GET": {
+      "200": { "reviews": [] }
+    }
+  }
+}
