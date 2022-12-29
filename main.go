@@ -72,12 +72,159 @@ func main() {
 	readMockFile()
 	setupExitHandler()
 	setupKeyboardHandler()
-	printHeader()
-	printPaths()
 	http.HandleFunc("/", handler)
 	printInfo(ip.String())
 	addr := fmt.Sprintf(":%d", port)
 	http.ListenAndServe(addr, nil)
+}
+
+func handler(w http.ResponseWriter, req *http.Request) {
+	if !strings.HasPrefix(req.URL.Path, "/"+prefix) {
+		http.Error(w, "Error: invalid prefix", http.StatusNotFound)
+		return
+	}
+
+	reqPath := strings.SplitAfter(req.URL.Path, prefix)[1]
+	reqPath = strings.TrimSuffix(reqPath, "/")
+	if len(reqPath) == 0 {
+		reqPath = "/"
+	}
+	reqEls := processRouteElements(reqPath)
+	response := processResponse(reqEls, req.Method)
+	lastPrint = 0
+	now := time.Now()
+	w.WriteHeader(statusCode)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Printf("\n%s %d %s %s %s", now.Format("15:04:05.000"), statusCode, req.Method, reqPath, req.RemoteAddr)
+	time.Sleep(time.Duration(delay) * time.Millisecond)
+	json.NewEncoder(w).Encode(response)
+}
+
+func processResponse(els []string, m string) interface{} {
+	var response interface{}
+routes:
+	for _, route := range routes {
+		if len(els) != len(route.pathEls) {
+			continue
+		}
+		for i, pe := range route.pathEls {
+			if els[i] != pe && pe != ":id" {
+				continue routes
+			}
+		}
+		for _, rm := range route.methods {
+			if m == rm.method {
+				for _, c := range rm.responses {
+					if fmt.Sprint(statusCode) == c.code {
+						response = c.payload
+					}
+				}
+			}
+		}
+		break
+	}
+	if response != nil {
+		return response
+	}
+	return map[string]interface{}{}
+}
+
+func toggleDelay() {
+	br := ""
+	if lastPrint != 1 {
+		lastPrint = 1
+		br = "\n"
+	}
+	fmt.Printf("%s\r              ", br)
+	switch delay {
+	case 0:
+		delay = 600
+	case 600:
+		delay = 1200
+	case 1200:
+		delay = 2400
+	default:
+		delay = 0
+		fmt.Printf("\rDELAY: off")
+		return
+	}
+	fmt.Printf("\rDELAY: %dms", delay)
+}
+
+func toggleStatus(i int) {
+	br := ""
+	if lastPrint != 2 {
+		lastPrint = 2
+		br = "\n"
+	}
+
+	statusCodeIdx += i
+	if statusCodeIdx == -1 {
+		statusCodeIdx = len(codes) - 1
+	} else if statusCodeIdx == len(codes) {
+		statusCodeIdx = 0
+	}
+	statusCode = codes[statusCodeIdx]
+	fmt.Printf("%s\rSTATUS CODE: %d", br, codes[statusCodeIdx])
+}
+
+func setupExitHandler() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println()
+		tty.Close()
+		os.Exit(0)
+	}()
+}
+
+func setupKeyboardHandler() {
+	go func() {
+		tty = keys.Open()
+
+		for {
+			key := tty.ReadKey()
+			switch key {
+			case "a":
+				toggleStatus(-1)
+			case "s":
+				toggleStatus(1)
+			case "d":
+				toggleDelay()
+			}
+		}
+	}()
+}
+
+func getIP() net.IP {
+	ifaces, err := net.Interfaces()
+	checkSetupError(err, "net")
+
+	ips := make([]net.IP, 0)
+	for _, i := range ifaces {
+		addrs, e := i.Addrs()
+		if e != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			ip = ip.To4()
+			if ip == nil || ip.String() == "127.0.0.1" {
+				continue
+			}
+			ips = append(ips, ip)
+		}
+	}
+	return ips[0]
 }
 
 func checkSetupError(e error, s string) {
@@ -137,63 +284,6 @@ func readMockFile() error {
 	return nil
 }
 
-func handler(w http.ResponseWriter, req *http.Request) {
-	if !strings.HasPrefix(req.URL.Path, "/"+prefix) {
-		http.Error(w, "Error: invalid prefix", http.StatusNotFound)
-		return
-	}
-	reqPath := strings.SplitAfter(req.URL.Path, prefix)[1]
-	if len(reqPath) == 0 {
-		reqPath = "/"
-	}
-	lastPrint = 0
-	now := time.Now()
-	fmt.Printf("\n%s %d %s %s %s", now.Format("15:04:05.000"), statusCode, req.Method, reqPath, req.RemoteAddr)
-	w.WriteHeader(statusCode)
-	w.Header().Set("Content-Type", "application/json")
-	time.Sleep(time.Duration(delay) * time.Millisecond)
-	w.Write([]byte("Ok"))
-}
-
-func toggleDelay() {
-	br := ""
-	if lastPrint != 1 {
-		lastPrint = 1
-		br = "\n"
-	}
-	fmt.Printf("%s\r                  ", br)
-	switch delay {
-	case 0:
-		delay = 600
-	case 600:
-		delay = 1200
-	case 1200:
-		delay = 2400
-	default:
-		delay = 0
-		fmt.Printf("\rDELAY: OFF")
-		return
-	}
-	fmt.Printf("\rDELAY: %dms", delay)
-}
-
-func toggleStatus(i int) {
-	br := ""
-	if lastPrint != 2 {
-		lastPrint = 2
-		br = "\n"
-	}
-
-	statusCodeIdx += i
-	if statusCodeIdx == -1 {
-		statusCodeIdx = len(codes) - 1
-	} else if statusCodeIdx == len(codes) {
-		statusCodeIdx = 0
-	}
-	statusCode = codes[statusCodeIdx]
-	fmt.Printf("%s\rSTATUS CODE: %d", br, codes[statusCodeIdx])
-}
-
 func processRouteElements(route string) []string {
 	if !strings.HasPrefix(route, "/") {
 		return []string{}
@@ -232,87 +322,21 @@ func invalidStatusCode(statusCode string) bool {
 	return true
 }
 
-func printHeader() {
+func printInfo(ip string) {
 	fmt.Printf("JSON Mock API v1.0\n\n")
 	fmt.Printf("  a, s    change status code\n")
 	fmt.Printf("  d       toggle delay\n")
 	fmt.Printf("  ctrl+c  stop server\n\n")
 	fmt.Printf("For more info, run help.\n\n")
-}
-
-func printPaths() {
 	for _, path := range apiPaths {
 		fmt.Printf("%s\n", path)
 	}
-}
-
-func printInfo(ip string) {
 	prefixInfo := ""
 	if len(prefix) > 0 {
 		prefixInfo = "/" + prefix
 	}
-	fmt.Printf("\nSTATUS CODE: 200\n")
 	fmt.Printf("\nListening on http://localhost:%d%s\n", port, prefixInfo)
 	fmt.Printf("             http://%s:%d%s\n", ip, port, prefixInfo)
-}
-
-func setupExitHandler() {
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		fmt.Println()
-		tty.Close()
-		os.Exit(0)
-	}()
-}
-
-func setupKeyboardHandler() {
-	go func() {
-		tty = keys.Open()
-
-		for {
-			key := tty.ReadKey()
-			switch key {
-			case "a":
-				toggleStatus(-1)
-			case "d":
-				toggleDelay()
-			case "s":
-				toggleStatus(1)
-			}
-		}
-	}()
-}
-
-func getIP() net.IP {
-	ifaces, err := net.Interfaces()
-	checkSetupError(err, "net")
-
-	ips := make([]net.IP, 0)
-	for _, i := range ifaces {
-		addrs, e := i.Addrs()
-		if e != nil {
-			continue
-		}
-
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-
-			ip = ip.To4()
-			if ip == nil || ip.String() == "127.0.0.1" {
-				continue
-			}
-			ips = append(ips, ip)
-		}
-	}
-	return ips[0]
 }
 
 func printHelp() {
