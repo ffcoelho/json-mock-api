@@ -14,41 +14,44 @@ import (
 )
 
 var tty *keys.TTY
-var codes []int = []int{200, 201, 204, 301, 302, 304, 400, 401, 403, 404, 409, 410, 500, 501}
+var codes []int = []int{200, 201, 202, 204, 301, 302, 304, 400, 401, 403, 404, 409, 410, 500, 501, 503}
 
+var startServer bool
 var lastPrint int = -1
-var mockDelay int
-var mockStatus int = http.StatusOK
-var mockStatusIdx int
+var statusCodeIdx int
+
 var port uint16 = 9000
+var delay int
+var statusCode int = http.StatusOK
 
 func init() {
-	setupExitHandler()
-	setupKeyboardHandler()
+	startServer = processArgs()
+	if startServer {
+		setupExitHandler()
+		setupKeyboardHandler()
+	}
 }
 
 func main() {
-	stop := processArgs()
-	if stop == false {
+	if startServer {
 		printHeader()
 		http.HandleFunc("/", handler)
 		ip := getIP()
 		printInfo(ip.String())
 		addr := fmt.Sprintf(":%d", port)
 		http.ListenAndServe(addr, nil)
+	} else {
+		printHelp()
 	}
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
-	if lastPrint != 0 {
-		lastPrint = 0
-	}
-
+	lastPrint = 0
 	now := time.Now()
-	fmt.Printf("\n%s %d %s %s", now.Format("15:04:05.000"), mockStatus, req.Method, req.URL.Path)
-	w.WriteHeader(mockStatus)
+	fmt.Printf("\n%s %d %s %s", now.Format("15:04:05.000"), statusCode, req.Method, req.URL.Path)
+	w.WriteHeader(statusCode)
 	w.Header().Set("Content-Type", "application/json")
-	time.Sleep(time.Duration(mockDelay) * time.Millisecond)
+	time.Sleep(time.Duration(delay) * time.Millisecond)
 	w.Write([]byte("Ok"))
 }
 
@@ -59,19 +62,19 @@ func toggleDelay() {
 		br = "\n"
 	}
 	fmt.Printf("%s\r                  ", br)
-	switch mockDelay {
+	switch delay {
 	case 0:
-		mockDelay = 600
+		delay = 600
 	case 600:
-		mockDelay = 1200
+		delay = 1200
 	case 1200:
-		mockDelay = 2400
+		delay = 2400
 	default:
-		mockDelay = 0
+		delay = 0
 		fmt.Printf("\rDELAY: OFF")
 		return
 	}
-	fmt.Printf("\rDELAY: %dms", mockDelay)
+	fmt.Printf("\rDELAY: %dms", delay)
 }
 
 func toggleStatus(i int) {
@@ -81,15 +84,14 @@ func toggleStatus(i int) {
 		br = "\n"
 	}
 
-	mockStatusIdx += i
-	if mockStatusIdx == -1 {
-		mockStatusIdx = len(codes) - 1
+	statusCodeIdx += i
+	if statusCodeIdx == -1 {
+		statusCodeIdx = len(codes) - 1
+	} else if statusCodeIdx == len(codes) {
+		statusCodeIdx = 0
 	}
-	if mockStatusIdx == len(codes) {
-		mockStatusIdx = 0
-	}
-	mockStatus = codes[mockStatusIdx]
-	fmt.Printf("%s\rSTATUS CODE: %d", br, codes[mockStatusIdx])
+	statusCode = codes[statusCodeIdx]
+	fmt.Printf("%s\rSTATUS CODE: %d", br, codes[statusCodeIdx])
 }
 
 func printHeader() {
@@ -142,22 +144,19 @@ func processArgs() bool {
 	args := os.Args[1:]
 	if len(args) > 0 {
 		if args[0] == "help" || args[0] == "-help" || args[0] == "--help" {
-			printHelp()
-			return true
+			return false
 		} else {
 			pUi64, err := strconv.ParseUint(args[0], 10, 64)
-			if err != nil {
-				return false
+			if err == nil {
+				port = uint16(pUi64)
 			}
-			port = uint16(pUi64)
 		}
 	}
-	return false
+	return true
 }
 
 func getIP() net.IP {
 	ifaces, err := net.Interfaces()
-
 	if err != nil {
 		panic(err)
 	}
@@ -165,7 +164,6 @@ func getIP() net.IP {
 	ips := make([]net.IP, 0)
 	for _, i := range ifaces {
 		addrs, e := i.Addrs()
-
 		if e != nil {
 			continue
 		}
@@ -183,10 +181,8 @@ func getIP() net.IP {
 			if ip == nil || ip.String() == "127.0.0.1" {
 				continue
 			}
-
 			ips = append(ips, ip)
 		}
 	}
-
 	return ips[0]
 }
