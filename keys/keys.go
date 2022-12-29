@@ -23,6 +23,9 @@ func (tty *TTY) ReadKey() string {
 		return ""
 	}
 	char := fmt.Sprintf("%c", r)
+	if char == "a" || char == "A" {
+		return "a"
+	}
 	if char == "d" || char == "D" {
 		return "d"
 	}
