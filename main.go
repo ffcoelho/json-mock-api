@@ -48,6 +48,7 @@ var delay int
 var statusCode int = http.StatusOK
 var routes []Route
 var apiPaths []string
+var apiPathsWidth int
 
 func init() {
 	help := flag.Bool("help", false, "Help")
@@ -279,8 +280,20 @@ func readMockFile() error {
 		}
 		routes = append(routes, mockRoute)
 		apiPaths = append(apiPaths, mockRoute.path)
+		if len(mockRoute.path) > apiPathsWidth {
+			apiPathsWidth = len(mockRoute.path)
+		}
 	}
-	sort.Strings(apiPaths)
+	for ri, route := range routes {
+		sort.Slice(route.methods,
+			func(i, j int) bool {
+				return routes[ri].methods[j].method > routes[ri].methods[i].method
+			})
+	}
+	sort.Slice(routes,
+		func(i, j int) bool {
+			return routes[j].path > routes[i].path
+		})
 	return nil
 }
 
@@ -328,8 +341,17 @@ func printInfo(ip string) {
 	fmt.Printf("  d       toggle delay\n")
 	fmt.Printf("  ctrl+c  stop server\n\n")
 	fmt.Printf("For more info, run help.\n\n")
-	for _, path := range apiPaths {
-		fmt.Printf("%s\n", path)
+	// for _, path := range apiPaths {
+	// 	es := strings.Repeat(" ", apiPathsWidth-len(path)+2)
+	// 	fmt.Printf("%s%s\n", path, es)
+	// }
+	for _, r := range routes {
+		methods := ""
+		for _, m := range r.methods {
+			methods = methods + " " + m.method
+		}
+		es := strings.Repeat(" ", apiPathsWidth-len(r.path))
+		fmt.Printf("%s%s  %s\n", r.path, es, methods)
 	}
 	prefixInfo := ""
 	if len(prefix) > 0 {
