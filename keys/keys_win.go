@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	enableEchoInput = 0x4
-
+	enableEchoInput       = 0x4
 	keyEvent              = 0x1
 	mouseEvent            = 0x2
 	windowBufferSizeEvent = 0x4
@@ -75,14 +74,9 @@ func open(path string) (*TTY, error) {
 		return nil, err
 	}
 	tty.st = st
-
 	st &^= enableEchoInput
-
-	// ignore error
 	procSetConsoleMode.Call(h, uintptr(st))
-
 	tty.sigwinchCtx, tty.sigwinchCtxCancel = context.WithCancel(context.Background())
-
 	return tty, nil
 }
 
@@ -103,7 +97,6 @@ func (tty *TTY) readRune() (rune, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	switch ir.eventType {
 	case keyEvent:
 		kr := (*keyEventRecord)(unsafe.Pointer(&ir.event))

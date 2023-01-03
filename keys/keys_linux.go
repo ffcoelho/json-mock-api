@@ -26,26 +26,22 @@ const (
 
 func open(path string) (*TTY, error) {
 	tty := new(TTY)
-
 	in, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	tty.in = in
 	tty.bin = bufio.NewReader(in)
-
 	out, err := os.OpenFile(path, unix.O_WRONLY, 0)
 	if err != nil {
 		return nil, err
 	}
 	tty.out = out
-
 	termios, err := unix.IoctlGetTermios(int(tty.in.Fd()), ioctlReadTermios)
 	if err != nil {
 		return nil, err
 	}
 	tty.termios = *termios
-
 	termios.Iflag &^= unix.ISTRIP | unix.INLCR | unix.ICRNL | unix.IGNCR | unix.IXOFF
 	termios.Lflag &^= unix.ECHO | unix.ICANON /*| unix.ISIG*/
 	termios.Cc[unix.VMIN] = 1
@@ -53,9 +49,7 @@ func open(path string) (*TTY, error) {
 	if err := unix.IoctlSetTermios(int(tty.in.Fd()), ioctlWriteTermios, termios); err != nil {
 		return nil, err
 	}
-
 	tty.ss = make(chan os.Signal, 1)
-
 	return tty, nil
 }
 

@@ -12,6 +12,9 @@ An easy way to run a mock API.
 ```
 $ ./mock [-port] [-prefix]
 
+> mock.exe [-port] [-prefix]  (windows)
+
+
 OPTIONS
   -port, --port          Override default port (9000)
   -prefix, --prefix      Add path prefix to all routes
@@ -19,9 +22,10 @@ OPTIONS
 
 EXAMPLES
   $ ./mock
-  $ ./mock -port=3000 -prefix=api/v1
+  $ ./mock --port=3000
+  $ ./mock -port 3000 -prefix api/v1
 
-COMMANDS
+SHORTCUTS
   a, s      Change status code
   d         Toggle delay
   ctrl+c    Stop server
