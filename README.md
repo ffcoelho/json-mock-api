@@ -3,10 +3,11 @@ An easy way to run a mock API.
 * JSON template
 * Control HTTP status and delay
 * Record of incoming requests
-
+  
+*This application was made for educational and development purposes.*
 ## Download
-* [Linux](https://github.com/ffcoelho/json-mock-api/zip/linux.zip) - x64
-* [Windows](https://github.com/ffcoelho/json-mock-api/zip/windows.zip) - x64
+* [Linux](https://github.com/ffcoelho/json-mock-api/tree/main/zip/linux.zip) - x64
+* [Windows](https://github.com/ffcoelho/json-mock-api/tree/main/zip/windows.zip) - x64
 
 ## Usage
 ```
