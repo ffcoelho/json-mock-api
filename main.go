@@ -50,6 +50,9 @@ func main() {
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	if !strings.HasPrefix(req.URL.Path, prefix) {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
@@ -63,14 +66,8 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	response, resStatus := processResponse(reqEls, req.Method)
 	lastPrint = 0
 	now := time.Now()
-	w.Header().Set("Content-Type", "application/json")
 	fmt.Printf("\n%s %d %s %s%s %s", now.Format("15:04:05.000"), resStatus, req.Method, pathSep, reqPath, req.RemoteAddr)
 	time.Sleep(time.Duration(delay) * time.Millisecond)
-	if response == nil {
-		msg := fmt.Sprintf("Json Mock API: \"%s %s\" not found", req.Method, reqPath)
-		http.Error(w, msg, http.StatusNotFound)
-		return
-	}
 	w.WriteHeader(resStatus)
 	json.NewEncoder(w).Encode(response)
 }

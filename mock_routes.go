@@ -28,7 +28,7 @@ type MockResponse struct {
 }
 
 var routes []MockRoute
-var methods []string = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}
+var methods []string = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 var codes []int = []int{1}
 var successCodes []int = []int{200, 201, 202, 204}
 var apiPathsWidth int
@@ -78,7 +78,11 @@ routes:
 		}
 		break
 	}
-	return nil, 404
+	c := 404
+	if m == "OPTIONS" {
+		c = 200
+	}
+	return nil, c
 }
 
 func readMockFile() error {
