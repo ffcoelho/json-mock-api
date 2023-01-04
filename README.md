@@ -5,8 +5,8 @@ An easy way to run a mock API.
 * Record of incoming requests
 
 ## Download
-* [Linux](https://github.com/ffcoelho/mock/zip/linux.zip)
-* [Windows](https://github.com/ffcoelho/mock/zip/windows.zip)
+* [Linux](https://github.com/ffcoelho/json-mock-api/zip/linux.zip) - x64
+* [Windows](https://github.com/ffcoelho/json-mock-api/zip/windows.zip) - x64
 
 ## Usage
 ```
@@ -42,6 +42,11 @@ SHORTCUTS
 
 EXAMPLE
 {
+  "/": {
+    "GET": {
+      "200": { "mock": true }
+    }
+  },
   "/books": {
     "GET": {
       "200": { "books": [] }
@@ -53,7 +58,7 @@ EXAMPLE
       "400": { "error": true }
     },
     "GET": {
-      "200": []
+      "200": { "reviews": [] }
     }
   }
 }
