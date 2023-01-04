@@ -43,25 +43,18 @@ func main() {
 	readMockFile()
 	setupExitHandler()
 	setupKeyboardHandler()
-	http.HandleFunc("/", handler)
 	printHeader()
+	http.HandleFunc("/", handler)
 	addr := fmt.Sprintf(":%d", port)
 	http.ListenAndServe(addr, nil)
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
-	if !strings.HasPrefix(req.URL.Path, prefix+"/") {
-		msg := fmt.Sprintf("Json Mock API: \"%s %s\" not found", req.Method, req.URL.Path)
-		http.Error(w, msg, http.StatusNotFound)
+	if !strings.HasPrefix(req.URL.Path, prefix) {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
-	reqPath := strings.SplitAfter(req.URL.Path, prefix)[1]
-	if strings.HasPrefix("/", reqPath) {
-		reqPath = reqPath[1:]
-	}
-	if len(reqPath) == 0 {
-		reqPath = "/"
-	}
+	reqPath := processRequestPath(req.URL.Path)
 	reqEls := processRouteElements(reqPath)
 	response, resStatus := processResponse(reqEls, req.Method)
 	lastPrint = 0
@@ -89,7 +82,20 @@ func processPrefixFlag(p string) string {
 			cleanEls = cleanEls + "/" + el
 		}
 	}
+	if len(cleanEls) == 0 {
+		return "/"
+	}
 	return cleanEls
+}
+
+func processRequestPath(path string) string {
+	p := strings.SplitAfterN(path, prefix, 2)[1]
+	if len(p) == 0 || p == "/" {
+		p = "/"
+	} else {
+		p = strings.TrimSuffix(p, "/")
+	}
+	return p
 }
 
 func getIP() {
