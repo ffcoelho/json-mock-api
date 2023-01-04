@@ -140,6 +140,7 @@ func readMockFile() error {
 		func(i, j int) bool {
 			return routes[j].path > routes[i].path
 		})
+	sort.Ints(codes)
 	return nil
 }
 
