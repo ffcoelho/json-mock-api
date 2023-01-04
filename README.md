@@ -6,9 +6,9 @@ An easy way to run a mock API.
   
 *This application was made for educational and development purposes.*
 ## Download
-* <a href="https://github.com/ffcoelho/json-mock-api/tree/main/zip/linux.zip" download>Linux</a> - x64
-* <a href="https://github.com/ffcoelho/json-mock-api/tree/main/zip/windows.zip" download>Windows</a> - x64
-
+* [Linux](https://github.com/ffcoelho/json-mock-api/tree/main/zip/linux.zip) - x64
+* [Windows](https://github.com/ffcoelho/json-mock-api/tree/main/zip/windows.zip) - x64
+  
 ## Usage
 ```
 $ ./mock [-port] [-prefix]
