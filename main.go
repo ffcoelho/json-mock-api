@@ -55,12 +55,16 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	reqPath := processRequestPath(req.URL.Path)
+	pathSep := ""
+	if !strings.HasPrefix(reqPath, "/") {
+		pathSep = "/"
+	}
 	reqEls := processRouteElements(reqPath)
 	response, resStatus := processResponse(reqEls, req.Method)
 	lastPrint = 0
 	now := time.Now()
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Printf("\n%s %d %s %s %s", now.Format("15:04:05.000"), resStatus, req.Method, reqPath, req.RemoteAddr)
+	fmt.Printf("\n%s %d %s %s%s %s", now.Format("15:04:05.000"), resStatus, req.Method, pathSep, reqPath, req.RemoteAddr)
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 	if response == nil {
 		msg := fmt.Sprintf("Json Mock API: \"%s %s\" not found", req.Method, reqPath)
